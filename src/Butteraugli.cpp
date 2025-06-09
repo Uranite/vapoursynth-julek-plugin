@@ -181,8 +181,14 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     auto d{std::make_unique<BUTTERAUGLIData>()};
     int err{0};
 
-    d->node = vsapi->mapGetNode(in, "reference", 0, nullptr);
-    d->node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+    VSNode* node = vsapi->mapGetNode(in, "reference", 0, nullptr);
+    VSNode* node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+
+    d->node = toRGBS(node, core, vsapi);
+    d->node2 = toRGBS(node2, core, vsapi);
+
+    vsapi->freeNode(node);
+    vsapi->freeNode(node2);
     d->vi = vsapi->getVideoInfo(d->node);
 
     d->heatmap = !!vsapi->mapGetInt(in, "heatmap", 0, &err);
