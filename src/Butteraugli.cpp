@@ -44,6 +44,37 @@ static void heatmapF(VSFrame* dst, const jxl::ImageF& distmap, int width, int he
     }
 }
 
+static void compute_norms(const jxl::ImageF& diff_map, float& norm2, float& norm3, float& norm_inf) {
+    float sum2 = 0.0f;     // Sum of squares for L2-norm
+    float sum3 = 0.0f;     // Sum of cubes for L3-norm
+    float max_val = 0.0f;  // For L∞-norm (max)
+
+    const int w = diff_map.xsize();
+    const int h = diff_map.ysize();
+    const int N = w * h;
+
+    if (N == 0) {
+        norm2 = norm3 = norm_inf = 0.0f;
+        return;
+    }
+
+    for (int y = 0; y < h; ++y) {
+        const float* row = diff_map.Row(y);
+        for (int x = 0; x < w; ++x) {
+            const float val = std::abs(row[x]);
+            const float val2 = val * val;
+
+            sum2 += val2;
+            sum3 += val2 * val;
+            max_val = std::max(max_val, val);
+        }
+    }
+
+    norm2 = std::sqrt(sum2 / N);              // Root-mean-square (L2-norm)
+    norm3 = std::pow(sum3 / N, 1.0f / 3.0f);  // Cubic root of mean of cubes (L3-norm)
+    norm_inf = max_val;                       // Maximum absolute value (L∞-norm)
+}
+
 static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, void* instanceData, void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
     auto d{static_cast<BUTTERAUGLIData*>(instanceData)};
 
@@ -75,12 +106,19 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
 
         d->fill(ref, dist, src, src2, width, height, stride, vsapi);
 
+        jxl::ButteraugliDistance(ref.Main(), dist.Main(), d->ba_params, jxl::GetJxlCms(), &diff_map, nullptr);
+
+        float norm2, norm3, norm_inf;
+        compute_norms(diff_map, norm2, norm3, norm_inf);
+
         if (d->distmap) {
             VSFrame* dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src2), width, height, src2, core);
-            double diff_value = jxl::ButteraugliDistance(ref.Main(), dist.Main(), d->ba_params, jxl::GetJxlCms(), &diff_map, nullptr);
             d->hmap(dst, diff_map, width, height, stride, vsapi);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
-            vsapi->mapSetFloat(dstProps, "_FrameButteraugli", diff_value, maReplace);
+
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
 
             vsapi->freeFrame(src);
             vsapi->freeFrame(src2);
@@ -88,7 +126,10 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
         } else {
             VSFrame* dst = vsapi->copyFrame(src2, core);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
-            vsapi->mapSetFloat(dstProps, "_FrameButteraugli", jxl::ButteraugliDistance(ref.Main(), dist.Main(), d->ba_params, jxl::GetJxlCms(), &diff_map, nullptr), maReplace);
+
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
 
             vsapi->freeFrame(src);
             vsapi->freeFrame(src2);
