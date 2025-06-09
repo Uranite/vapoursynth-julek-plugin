@@ -6,9 +6,10 @@ struct BUTTERAUGLIData final {
     const VSVideoInfo* vi;
     jxl::ButteraugliParams ba_params;
     bool distmap;
+    bool heatmap;
     bool linput;
 
-    void (*hmap)(VSFrame* dst, const jxl::ImageF& distmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+    void (*hmap)(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
     void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
 };
 
@@ -18,8 +19,8 @@ template <bool linput>
 extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
 
 template <typename pixel_t, typename jxl_t, int peak>
-static void heatmap(VSFrame* dst, const jxl::ImageF& distmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
-    jxl::Image3F buff = jxl::CreateHeatMapImage(distmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
+static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+    jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     jxl_t tmp(width, height);
     jxl::Image3Convert(buff, peak, &tmp);
 
@@ -32,8 +33,8 @@ static void heatmap(VSFrame* dst, const jxl::ImageF& distmap, int width, int hei
     }
 }
 
-static void heatmapF(VSFrame* dst, const jxl::ImageF& distmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
-    jxl::Image3F buff = jxl::CreateHeatMapImage(distmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
+static void heatmapF(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+    jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
 
     for (int i = 0; i < 3; i++) {
         float* dstp{reinterpret_cast<float*>(vsapi->getWritePtr(dst, i))};
@@ -112,6 +113,33 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
         compute_norms(diff_map, norm2, norm3, norm_inf);
 
         if (d->distmap) {
+            VSVideoFormat fmt;
+            if (!vsapi->queryVideoFormat(&fmt, cfGray, stFloat, 32, 0, 0, core)) {
+                vsapi->setFilterError("Butteraugli: Failed to create grayscale float format", frameCtx);
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(src2);
+                return nullptr;
+            }
+            VSFrame* dst = vsapi->newVideoFrame(&fmt, width, height, nullptr, core);
+            float* dstp = reinterpret_cast<float*>(vsapi->getWritePtr(dst, 0));
+            const ptrdiff_t dst_stride = vsapi->getStride(dst, 0) / sizeof(float);
+
+            for (int y = 0; y < height; y++) {
+                const float* row = diff_map.Row(y);
+                for (int x = 0; x < width; x++) {
+                    dstp[y * dst_stride + x] = row[x];
+                }
+            }
+            VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
+
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
+
+            vsapi->freeFrame(src);
+            vsapi->freeFrame(src2);
+            return dst;
+        } else if (d->heatmap) {
             VSFrame* dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src2), width, height, src2, core);
             d->hmap(dst, diff_map, width, height, stride, vsapi);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
@@ -155,9 +183,20 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     d->node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
     d->vi = vsapi->getVideoInfo(d->node);
 
+    d->heatmap = !!vsapi->mapGetInt(in, "heatmap", 0, &err);
+    if (err)
+        d->heatmap = false;
+
     d->distmap = !!vsapi->mapGetInt(in, "distmap", 0, &err);
     if (err)
         d->distmap = false;
+
+    if (d->heatmap && d->distmap) {
+        vsapi->mapSetError(out, "Butteraugli: 'heatmap' and 'distmap' cannot both be enabled at the same time.");
+        vsapi->freeNode(d->node);
+        vsapi->freeNode(d->node2);
+        return;
+    }
 
     d->linput = !!vsapi->mapGetInt(in, "linput", 0, &err);
     if (err)
@@ -216,7 +255,19 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
             break;
     }
 
+    VSVideoInfo vi_out = *d->vi;
+    if (d->distmap) {
+        VSVideoFormat fmt;
+        if (!vsapi->queryVideoFormat(&fmt, cfGray, stFloat, 32, 0, 0, core)) {
+            vsapi->mapSetError(out, "Butteraugli: Failed to create grayscale float format");
+            vsapi->freeNode(d->node);
+            vsapi->freeNode(d->node2);
+            return;
+        }
+        vi_out.format = fmt;
+    }
+
     VSFilterDependency deps[]{{d->node, rpGeneral}, {d->node2, rpGeneral}};
-    vsapi->createVideoFilter(out, "Butteraugli", d->vi, butteraugliGetFrame, butteraugliFree, fmParallel, deps, 2, d.get(), core);
+    vsapi->createVideoFilter(out, "Butteraugli", &vi_out, butteraugliGetFrame, butteraugliFree, fmParallel, deps, 2, d.get(), core);
     d.release();
 }
