@@ -11,6 +11,7 @@ add_library(julek SHARED
 	src/shared.cpp
 	src/ssimulacra.cpp
 	src/VisualizeDiffs.cpp
+	src/torgbs.cpp
 	thirdparty/libjxl/tools/ssimulacra.cc
 	thirdparty/libjxl/tools/ssimulacra2.cc
 )

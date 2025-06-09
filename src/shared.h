@@ -29,6 +29,9 @@ extern void VS_CC rfsCreate(const VSMap* in, VSMap* out, void* userData, VSCore*
 extern void VS_CC ssimulacraCreate(const VSMap* in, VSMap* out, void* userData, VSCore* core, const VSAPI* vsapi);
 extern void VS_CC visualizediffsCreate(const VSMap* in, VSMap* out, void* userData, VSCore* core, const VSAPI* vsapi);
 
+// RGBS conversion helper function
+extern VSNode* toRGBS(VSNode* source, VSCore* core, const VSAPI* vsapi);
+
 #ifdef _MSC_VER
 #define FORCE_INLINE inline __forceinline
 #else

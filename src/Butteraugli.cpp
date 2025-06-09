@@ -178,8 +178,15 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     auto d{std::make_unique<BUTTERAUGLIData>()};
     int err{0};
 
-    d->node = vsapi->mapGetNode(in, "reference", 0, nullptr);
-    d->node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+    // Get and convert inputs to RGB format if needed
+    VSNode* node = vsapi->mapGetNode(in, "reference", 0, nullptr);
+    VSNode* node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+    
+    d->node = toRGBS(node, core, vsapi);
+    d->node2 = toRGBS(node2, core, vsapi);
+    
+    vsapi->freeNode(node);
+    vsapi->freeNode(node2);
     d->vi = vsapi->getVideoInfo(d->node);
 
     d->heatmap = !!vsapi->mapGetInt(in, "heatmap", 0, &err);
@@ -212,21 +219,6 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
 
     if (intensity_target <= 0.0f) {
         vsapi->mapSetError(out, "Butteraugli: intensity_target must be greater than 0.0.");
-        vsapi->freeNode(d->node);
-        vsapi->freeNode(d->node2);
-        return;
-    }
-
-    if (d->vi->format.colorFamily != cfRGB) {
-        vsapi->mapSetError(out, "Butteraugli: the clip must be in RGB format.");
-        vsapi->freeNode(d->node);
-        vsapi->freeNode(d->node2);
-        return;
-    }
-
-    int bits = d->vi->format.bitsPerSample;
-    if (bits != 8 && bits != 16 && bits != 32) {
-        vsapi->mapSetError(out, "Butteraugli: the clip bit depth must be 8, 16, or 32.");
         vsapi->freeNode(d->node);
         vsapi->freeNode(d->node2);
         return;

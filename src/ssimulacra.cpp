@@ -72,8 +72,15 @@ void VS_CC ssimulacraCreate(const VSMap* in, VSMap* out, void* userData, VSCore*
     auto d{std::make_unique<SSIMULACRAData>()};
     int err{0};
 
-    d->node = vsapi->mapGetNode(in, "reference", 0, nullptr);
-    d->node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+    // Get and convert inputs to RGB format if needed
+    VSNode* node = vsapi->mapGetNode(in, "reference", 0, nullptr);
+    VSNode* node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
+    
+    d->node = toRGBS(node, core, vsapi);
+    d->node2 = toRGBS(node2, core, vsapi);
+    
+    vsapi->freeNode(node);
+    vsapi->freeNode(node2);
     d->vi = vsapi->getVideoInfo(d->node);
 
     d->feature = vsapi->mapGetIntSaturated(in, "feature", 0, &err);
