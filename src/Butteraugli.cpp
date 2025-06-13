@@ -178,7 +178,6 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     auto d{std::make_unique<BUTTERAUGLIData>()};
     int err{0};
 
-    // Get and convert inputs to RGB format if needed
     VSNode* node = vsapi->mapGetNode(in, "reference", 0, nullptr);
     VSNode* node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
     
@@ -246,11 +245,9 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
             break;
     }
 
-    // Create a copy of the video info
     VSVideoInfo vi_out = *d->vi;
 
     if (d->distmap) {
-        // For distmap, create a grayscale float format
         VSVideoFormat fmt;
         if (!vsapi->queryVideoFormat(&fmt, cfGray, stFloat, 32, 0, 0, core)) {
             vsapi->mapSetError(out, "Butteraugli: Failed to create grayscale float format");
@@ -259,8 +256,6 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
             return;
         }
         vi_out.format = fmt;
-
-        // Output is grayscale float format
     }
 
     VSFilterDependency deps[]{{d->node, rpGeneral}, {d->node2, rpGeneral}};

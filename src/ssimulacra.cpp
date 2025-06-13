@@ -72,7 +72,6 @@ void VS_CC ssimulacraCreate(const VSMap* in, VSMap* out, void* userData, VSCore*
     auto d{std::make_unique<SSIMULACRAData>()};
     int err{0};
 
-    // Get and convert inputs to RGB format if needed
     VSNode* node = vsapi->mapGetNode(in, "reference", 0, nullptr);
     VSNode* node2 = vsapi->mapGetNode(in, "distorted", 0, nullptr);
     
