@@ -45,7 +45,7 @@ Open the ``Visual Studio 2022 Developer PowerShell`` and use cd to the folder yo
 
 cd vapoursynth-julek-plugin/thirdparty
 
-cmake -C ./libjxl_cache.cmake -G Ninja ./libjxl -B libjxl_build -DCMAKE_POLICY_VERSION_MINIMUM="3.5" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang
+cmake -C ./libjxl_cache.cmake -G Ninja ./libjxl -B libjxl_build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang
 
 cmake --build libjxl_build
 

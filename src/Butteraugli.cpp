@@ -24,9 +24,9 @@ template <typename pixel_t, typename jxl_t, int peak>
 static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
     jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     jxl_t tmp(width, height);
-    jxl::Image3Convert(buff, peak, &tmp);
 
     for (int i = 0; i < 3; i++) {
+        jxl::ImageConvert(buff.Plane(i), peak, &tmp.Plane(i));
         auto dstp{reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i))};
         for (int y = 0; y < height; y++) {
             memcpy(dstp, tmp.ConstPlaneRow(i, y), width * sizeof(pixel_t));
@@ -215,7 +215,7 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     if (err)
         intensity_target = 80.0f;
 
-    d->ba_params.hf_asymmetry = 0.8f;
+    d->ba_params.hf_asymmetry = 1.0f;
     d->ba_params.xmul = 1.0f;
     d->ba_params.intensity_target = intensity_target;
 
