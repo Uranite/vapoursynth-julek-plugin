@@ -215,7 +215,7 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     float intensity_target;
     intensity_target = vsapi->mapGetFloatSaturated(in, "intensity_target", 0, &err);
     if (err)
-        intensity_target = 80.0f;
+        intensity_target = 203.0f;
 
     d->ba_params.hf_asymmetry = 0.8f;
     d->ba_params.xmul = 1.0f;
