@@ -215,7 +215,7 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     if (err)
         intensity_target = 80.0f;
 
-    d->ba_params.hf_asymmetry = 1.0f;
+    d->ba_params.hf_asymmetry = 0.8f;
     d->ba_params.xmul = 1.0f;
     d->ba_params.intensity_target = intensity_target;
 
