@@ -31,7 +31,7 @@ extern void VS_CC visualizediffsCreate(const VSMap* in, VSMap* out, void* userDa
 
 extern VSNode* toRGBS(VSNode* source, VSCore* core, const VSAPI* vsapi);
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__GNUC__)
 #define FORCE_INLINE inline __forceinline
 #else
 #define FORCE_INLINE inline __attribute__((always_inline))
