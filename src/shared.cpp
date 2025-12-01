@@ -30,8 +30,8 @@ void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1
         }
     }
 
-    ref.SetFromImage(std::move(jxl::ConvertToFloat(tmp1)), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false));
-    dist.SetFromImage(std::move(jxl::ConvertToFloat(tmp2)), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false));
+    ref.SetFromImage(jxl::ConvertToFloat(tmp1), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false));
+    dist.SetFromImage(jxl::ConvertToFloat(tmp2), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false));
 }
 
 template <bool linput>

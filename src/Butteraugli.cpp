@@ -22,9 +22,9 @@ template <typename pixel_t, typename jxl_t, int peak>
 static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
     jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     jxl_t tmp(width, height);
-    jxl::Image3Convert(buff, peak, &tmp);
 
     for (int i = 0; i < 3; i++) {
+        jxl::ImageConvert(buff.Plane(i), peak, &tmp.Plane(i));
         auto dstp{reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i))};
         for (int y = 0; y < height; y++) {
             memcpy(dstp, tmp.ConstPlaneRow(i, y), width * sizeof(pixel_t));
