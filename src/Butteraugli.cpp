@@ -13,18 +13,28 @@ struct BUTTERAUGLIData final {
     void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
 };
 
-template <typename pixel_t, typename jxl_t, bool linput>
-extern void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-template <bool linput>
-extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-
 template <typename pixel_t, typename jxl_t, int peak>
 static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
-    jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
-    jxl_t tmp(width, height);
+    auto buff_res = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
+    if (!buff_res.ok()) return;
+    jxl::Image3F buff = std::move(buff_res).value_();
 
+    auto tmp_res = jxl_t::Create(get_memory_manager(), width, height);
+    if (!tmp_res.ok()) return;
+    jxl_t tmp = std::move(tmp_res).value_();
+
+    for (size_t c = 0; c < 3; ++c) {
+        for (size_t y = 0; y < height; ++y) {
+            const float* VS_RESTRICT row_in = buff.PlaneRow(c, y);
+            pixel_t* VS_RESTRICT row_out = tmp.PlaneRow(c, y);
+            for (size_t x = 0; x < width; ++x) {
+                // Scale and clamp
+                float val = row_in[x] * peak;
+                row_out[x] = static_cast<pixel_t>(val + 0.5f);  // Rounding
+            }
+        }
+    }
     for (int i = 0; i < 3; i++) {
-        jxl::ImageConvert(buff.Plane(i), peak, &tmp.Plane(i));
         auto dstp{reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i))};
         for (int y = 0; y < height; y++) {
             memcpy(dstp, tmp.ConstPlaneRow(i, y), width * sizeof(pixel_t));
@@ -34,7 +44,9 @@ static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int hei
 }
 
 static void heatmapF(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
-    jxl::Image3F buff = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
+    auto buff_res = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
+    if (!buff_res.ok()) return;  // TODO: handle error
+    jxl::Image3F buff = std::move(buff_res).value_();
 
     for (int i = 0; i < 3; i++) {
         float* dstp{reinterpret_cast<float*>(vsapi->getWritePtr(dst, i))};
@@ -90,24 +102,37 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
         int height = vsapi->getFrameHeight(src2, 0);
         const ptrdiff_t stride = vsapi->getStride(src2, 0) / d->vi->format.bytesPerSample;
 
-        jxl::CodecInOut ref;
-        jxl::CodecInOut dist;
+        jxl::CodecInOut ref{get_memory_manager()};
+        jxl::CodecInOut dist{get_memory_manager()};
         jxl::ImageF diff_map;
 
-        ref.SetSize(width, height);
-        dist.SetSize(width, height);
-
-        if (d->linput) {
-            ref.metadata.m.color_encoding = jxl::ColorEncoding::LinearSRGB(false);
-            dist.metadata.m.color_encoding = jxl::ColorEncoding::LinearSRGB(false);
-        } else {
-            ref.metadata.m.color_encoding = jxl::ColorEncoding::SRGB(false);
-            dist.metadata.m.color_encoding = jxl::ColorEncoding::SRGB(false);
+        if (!ref.SetSize(width, height) || !dist.SetSize(width, height)) {
+            vsapi->setFilterError("Butteraugli: Failed to set image size", frameCtx);
+            vsapi->freeFrame(src);
+            vsapi->freeFrame(src2);
+            return nullptr;
         }
 
         d->fill(ref, dist, src, src2, width, height, stride, vsapi);
 
-        jxl::ButteraugliDistance(ref.Main(), dist.Main(), d->ba_params, jxl::GetJxlCms(), &diff_map, nullptr);
+        // Butteraugli expects linear RGB
+        if (!d->linput) {
+            if (!ref.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), *JxlGetDefaultCms()) ||
+                !dist.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), *JxlGetDefaultCms())) {
+                vsapi->setFilterError("Butteraugli: Failed to transform to Linear SRGB", frameCtx);
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(src2);
+                return nullptr;
+            }
+        }
+
+        double score;
+        if (!jxl::ButteraugliInterface(*ref.Main().color(), *dist.Main().color(), d->ba_params, diff_map, score)) {
+            vsapi->setFilterError("Butteraugli: ButteraugliInterface failed", frameCtx);
+            vsapi->freeFrame(src);
+            vsapi->freeFrame(src2);
+            return nullptr;
+        }
 
         float norm2, norm3, norm_inf;
         compute_norms(diff_map, norm2, norm3, norm_inf);

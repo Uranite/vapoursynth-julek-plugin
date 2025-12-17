@@ -10,11 +10,6 @@ struct SSIMULACRAData final {
     void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
 };
 
-template <typename pixel_t, typename jxl_t, bool linput>
-extern void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-template <bool linput>
-extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-
 static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void* instanceData, void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
     auto d{static_cast<SSIMULACRAData*>(instanceData)};
 
@@ -29,12 +24,16 @@ static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void
         int height = vsapi->getFrameHeight(src2, 0);
         const ptrdiff_t stride = vsapi->getStride(src2, 0) / d->vi->format.bytesPerSample;
 
-        jxl::CodecInOut ref;
-        jxl::CodecInOut dist;
+        jxl::CodecInOut ref{get_memory_manager()};
+        jxl::CodecInOut dist{get_memory_manager()};
         jxl::ImageF diff_map;
 
-        ref.SetSize(width, height);
-        dist.SetSize(width, height);
+        if (!ref.SetSize(width, height) || !dist.SetSize(width, height)) {
+            vsapi->setFilterError("SSIMULACRA: Failed to set image size", frameCtx);
+            vsapi->freeFrame(src);
+            vsapi->freeFrame(src2);
+            return nullptr;
+        }
 
         d->fill(ref, dist, src, src2, width, height, stride, vsapi);
 
@@ -42,15 +41,42 @@ static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void
         VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
         if (!d->feature || d->feature == 2) {
-            Msssim msssim{ComputeSSIMULACRA2(ref.Main(), dist.Main())};
-            vsapi->mapSetFloat(dstProps, "_SSIMULACRA2", msssim.Score(), maReplace);
+            auto result = ComputeSSIMULACRA2(ref.Main(), dist.Main());
+            if (result.ok()) {
+                if (result.ok()) {
+                    Msssim msssim = std::move(result).value_();
+                    vsapi->mapSetFloat(dstProps, "_SSIMULACRA2", msssim.Score(), maReplace);
+                } else {
+                    vsapi->setFilterError("SSIMULACRA: ComputeSSIMULACRA2 failed", frameCtx);
+                    vsapi->freeFrame(dst);
+                    vsapi->freeFrame(src);
+                    vsapi->freeFrame(src2);
+                    return nullptr;
+                }
+            }
         }
 
         if (d->feature) {
-            JXL_CHECK(ref.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), jxl::GetJxlCms()));
-            JXL_CHECK(dist.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), jxl::GetJxlCms()));
-            ssimulacra::Ssimulacra ssimulacra_{ssimulacra::ComputeDiff(*ref.Main().color(), *dist.Main().color(), d->simple)};
-            vsapi->mapSetFloat(dstProps, "_SSIMULACRA", ssimulacra_.Score(), maReplace);
+            if (!ref.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), *JxlGetDefaultCms()) ||
+                !dist.Main().TransformTo(jxl::ColorEncoding::LinearSRGB(false), *JxlGetDefaultCms())) {
+                vsapi->setFilterError("SSIMULACRA: Failed to transform to Linear SRGB", frameCtx);
+                vsapi->freeFrame(dst);
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(src2);
+                return nullptr;
+            }
+
+            auto result = ssimulacra::ComputeDiff(*ref.Main().color(), *dist.Main().color(), d->simple);
+            if (result.ok()) {
+                ssimulacra::Ssimulacra ssimulacra_ = std::move(result).value_();
+                vsapi->mapSetFloat(dstProps, "_SSIMULACRA", ssimulacra_.Score(), maReplace);
+            } else {
+                vsapi->setFilterError("SSIMULACRA: ssimulacra::ComputeDiff failed", frameCtx);
+                vsapi->freeFrame(dst);
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(src2);
+                return nullptr;
+            }
         }
 
         vsapi->freeFrame(src);

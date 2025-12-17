@@ -14,11 +14,19 @@ add_library(julek SHARED
 	src/torgbs.cpp
 	thirdparty/libjxl/tools/ssimulacra.cc
 	thirdparty/libjxl/tools/ssimulacra2.cc
+	thirdparty/libjxl/lib/jxl/cms/jxl_cms.cc
+	thirdparty/libjxl/tools/no_memory_manager.cc
+	thirdparty/libjxl/tools/gauss_blur.cc
+	thirdparty/libjxl/third_party/skcms/skcms.cc
+	thirdparty/libjxl/third_party/skcms/src/skcms_TransformBaseline.cc
+	thirdparty/libjxl/third_party/skcms/src/skcms_TransformHsw.cc
+	thirdparty/libjxl/third_party/skcms/src/skcms_TransformSkx.cc
 )
 
 target_include_directories(julek PRIVATE
 	thirdparty/libjxl
 	thirdparty/libjxl_build/install/include
+	thirdparty/libjxl/third_party/skcms
 )
 
 set_target_properties(julek PROPERTIES
@@ -26,6 +34,7 @@ set_target_properties(julek PROPERTIES
 	CXX_STANDARD 17
 	CXX_STANDARD_REQUIRED ON
 )
+target_compile_definitions(julek PRIVATE JPEGXL_ENABLE_SKCMS=1)
 
 find_library(libjxl NAMES
 	jxl
@@ -58,6 +67,11 @@ if((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") OR(CMAKE_SYSTEM_PROCESSOR MATCHES "
 		src/AVX2/AGM_AVX2.cpp
 		src/AVX2/AutoGain_AVX2.cpp
 	)
+	
+	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		set_source_files_properties(thirdparty/libjxl/third_party/skcms/src/skcms_TransformHsw.cc PROPERTIES COMPILE_OPTIONS "-mavx2;-mf16c;-mfma")
+		set_source_files_properties(thirdparty/libjxl/third_party/skcms/src/skcms_TransformSkx.cc PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512dq;-mavx512cd;-mavx512bw;-mavx512vl")
+	endif()
 
 	if(MSVC)
 		set_source_files_properties(src/AVX2/AGM_AVX2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <VSHelper4.h>
-#include <VapourSynth4.h>
+#include <jxl/cms.h>
+#include <jxl/color_encoding.h>
 
 #include <algorithm>
 #include <cmath>
@@ -10,11 +10,12 @@
 
 #include "config.h"
 #include "lib/extras/codec.h"
-#include "lib/jxl/color_management.h"
+#include "lib/include/jxl/memory_manager.h"
 #include "lib/jxl/enc_butteraugli_comparator.h"
-#include "lib/jxl/enc_color_management.h"
 #include "tools/ssimulacra.h"
 #include "tools/ssimulacra2.h"
+#include "vapoursynth/VSHelper4.h"
+#include "vapoursynth/VapourSynth4.h"
 
 #ifdef PLUGIN_X86
 #include "vectorclass.h"
@@ -31,7 +32,14 @@ extern void VS_CC visualizediffsCreate(const VSMap* in, VSMap* out, void* userDa
 
 extern VSNode* toRGBS(VSNode* source, VSCore* core, const VSAPI* vsapi);
 
-#ifdef _MSC_VER
+JxlMemoryManager* get_memory_manager();
+
+template <typename pixel_t, typename jxl_t, bool linput>
+extern void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+template <bool linput>
+extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+
+#if defined(_MSC_VER)
 #define FORCE_INLINE inline __forceinline
 #else
 #define FORCE_INLINE inline __attribute__((always_inline))
