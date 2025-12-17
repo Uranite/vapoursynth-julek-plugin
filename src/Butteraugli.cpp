@@ -5,6 +5,7 @@ struct BUTTERAUGLIData final {
     VSNode* node2;
     const VSVideoInfo* vi;
     jxl::ButteraugliParams ba_params;
+    double qnorm_val;
     bool distmap;
     bool heatmap;
     bool linput;
@@ -57,35 +58,34 @@ static void heatmapF(VSFrame* dst, const jxl::ImageF& heatmap, int width, int he
     }
 }
 
-static void compute_norms(const jxl::ImageF& diff_map, float& norm2, float& norm3, float& norm_inf) {
-    float sum2 = 0.0f;     // Sum of squares for L2-norm
-    float sum3 = 0.0f;     // Sum of cubes for L3-norm
-    float max_val = 0.0f;  // For L∞-norm (max)
+static void compute_norms(const jxl::ImageF& diff_map, double& norm_q, double& norm3, double& norm_inf, double q) {
+    double sum_q = 0.0;    // Sum of q-powers for q-norm
+    double sum3 = 0.0;     // Sum of cubes for L3-norm
+    double max_val = 0.0;  // For L∞-norm (max)
 
     const int w = diff_map.xsize();
     const int h = diff_map.ysize();
     const int N = w * h;
 
     if (N == 0) {
-        norm2 = norm3 = norm_inf = 0.0f;
+        norm_q = norm3 = norm_inf = 0.0;
         return;
     }
 
     for (int y = 0; y < h; ++y) {
         const float* row = diff_map.Row(y);
         for (int x = 0; x < w; ++x) {
-            const float val = std::abs(row[x]);
-            const float val2 = val * val;
+            const double val = std::abs(row[x]);
 
-            sum2 += val2;
-            sum3 += val2 * val;
-            max_val = std::max(max_val, val);
+            sum_q += std::pow(val, q);
+            sum3 += val * val * val;
+            if (val > max_val) max_val = val;
         }
     }
 
-    norm2 = std::sqrt(sum2 / N);              // Root-mean-square (L2-norm)
-    norm3 = std::pow(sum3 / N, 1.0f / 3.0f);  // Cubic root of mean of cubes (L3-norm)
-    norm_inf = max_val;                       // Maximum absolute value (L∞-norm)
+    norm_q = std::pow(sum_q / N, 1.0 / q);
+    norm3 = std::pow(sum3 / N, 1.0 / 3.0);
+    norm_inf = max_val;  // Maximum absolute value (L∞-norm)
 }
 
 static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, void* instanceData, void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
@@ -134,8 +134,8 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             return nullptr;
         }
 
-        float norm2, norm3, norm_inf;
-        compute_norms(diff_map, norm2, norm3, norm_inf);
+        double norm_q, norm3, norm_inf;
+        compute_norms(diff_map, norm_q, norm3, norm_inf, d->qnorm_val);
 
         if (d->distmap) {
             VSVideoFormat fmt;
@@ -157,7 +157,7 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             }
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
-            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_QNorm", norm_q, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
 
@@ -169,7 +169,7 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             d->hmap(dst, diff_map, width, height, stride, vsapi);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
-            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_QNorm", norm_q, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
 
@@ -180,7 +180,7 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             VSFrame* dst = vsapi->copyFrame(src2, core);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
-            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_2Norm", norm2, maReplace);
+            vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_QNorm", norm_q, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_3Norm", norm3, maReplace);
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_INFNorm", norm_inf, maReplace);
 
@@ -248,6 +248,17 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
 
     if (intensity_target <= 0.0f) {
         vsapi->mapSetError(out, "Butteraugli: intensity_target must be greater than 0.0.");
+        vsapi->freeNode(d->node);
+        vsapi->freeNode(d->node2);
+        return;
+    }
+
+    d->qnorm_val = vsapi->mapGetFloatSaturated(in, "qnorm", 0, &err);
+    if (err)
+        d->qnorm_val = 2.0;
+
+    if (d->qnorm_val <= 0.0) {
+        vsapi->mapSetError(out, "Butteraugli: qnorm must be greater than 0.0.");
         vsapi->freeNode(d->node);
         vsapi->freeNode(d->node2);
         return;
