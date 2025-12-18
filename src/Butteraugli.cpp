@@ -152,10 +152,8 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             const ptrdiff_t dst_stride = vsapi->getStride(dst, 0) / sizeof(float);
 
             for (int y = 0; y < height; y++) {
-                const float* row = diff_map.Row(y);
-                for (int x = 0; x < width; x++) {
-                    dstp[y * dst_stride + x] = row[x];
-                }
+                memcpy(dstp, diff_map.Row(y), width * sizeof(float));
+                dstp += dst_stride;
             }
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
