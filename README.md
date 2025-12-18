@@ -25,7 +25,7 @@ I recommend compiling with clang or you may have problems with libjxl, if you wa
 ### Windows:
 For some reason, the plugin fails to load if compiled with MSVC, use Clang instead. Select Clang in your installation of C++ Build Tools, or download Clang from [LLVM](https://github.com/llvm/llvm-project/releases) as the one from C++ Build Tools may be outdated. Only MSVC and the Windows SDK should be required in your installation of C++ Build Tools.
 
-Open the ``Visual Studio 2022 Developer PowerShell`` and use cd to the folder you downloaded the repository.
+Open ``Developer PowerShell for VS`` and use cd to the folder you downloaded the repository.
 ```pwsh
 # Recommended, uncomment to use:
 # $env:CFLAGS = "-march=native -flto -ffast-math"
