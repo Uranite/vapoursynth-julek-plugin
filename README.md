@@ -34,8 +34,7 @@ Open the ``Visual Studio 2022 Developer PowerShell`` and use cd to the folder yo
 git clone --recurse-submodules https://github.com/dnjulek/vapoursynth-julek-plugin
 cd vapoursynth-julek-plugin
 
-# You may need to adjust the location of VS_INCLUDE_DIR
-cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVS_INCLUDE_DIR="C:/Program Files/VapourSynth/sdk/include/vapoursynth" -DCMAKE_CXX_COMPILER=clang
+cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
 
 cmake --build build
 ```

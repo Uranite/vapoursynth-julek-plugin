@@ -72,36 +72,11 @@ else()
 	message(STATUS "julek: ${CMAKE_SYSTEM_PROCESSOR} processor detected, unable to use vectorclass")
 endif()
 
-find_package(PkgConfig QUIET MODULE)
+target_include_directories(julek PRIVATE
+	thirdparty/vapoursynth/include
+)
 
-if(PKG_CONFIG_FOUND)
-	pkg_search_module(VS vapoursynth)
-
-	if(VS_FOUND)
-		message(STATUS "Found VapourSynth r${VS_VERSION}")
-
-		cmake_path(APPEND install_dir ${VS_LIBDIR} vapoursynth)
-		target_include_directories(julek PRIVATE ${VS_INCLUDE_DIRS})
-
-		install(TARGETS julek LIBRARY DESTINATION ${install_dir})
-	endif()
-endif()
-
-if(NOT VS_FOUND)
-	if(EXISTS "C:/Program Files/VapourSynth/sdk/include/vapoursynth")
-		set(VS_INCLUDE_DIR "C:/Program Files/VapourSynth/sdk/include/vapoursynth" CACHE PATH "Path to VapourSynth headers")
-	else()
-		set(VS_INCLUDE_DIR "" CACHE PATH "Path to VapourSynth headers")
-	endif()
-
-	if(VS_INCLUDE_DIR EQUAL "")
-		message(WARNING "VapourSynth not found")
-	endif()
-
-	target_include_directories(julek PRIVATE ${VS_INCLUDE_DIR})
-
-	install(TARGETS julek LIBRARY RUNTIME)
-endif()
+install(TARGETS julek LIBRARY RUNTIME)
 
 find_package(Git QUIET)
 
