@@ -62,7 +62,7 @@ jxl::Image3F ConvertToFloatNormalized<float>(const jxl::Image3F& input) {
 }
 
 template <typename pixel_t, typename jxl_t, bool linput>
-void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept {
     auto tmp1_res = jxl_t::Create(get_memory_manager(), width, height);
     auto tmp2_res = jxl_t::Create(get_memory_manager(), width, height);
     if (!tmp1_res.ok() || !tmp2_res.ok()) return;  // Should handle error better but void return
@@ -72,13 +72,15 @@ void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1
     for (int i = 0; i < 3; ++i) {
         auto srcp1{reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(src1, i))};
         auto srcp2{reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(src2, i))};
+        const ptrdiff_t stride1 = vsapi->getStride(src1, i) / sizeof(pixel_t);
+        const ptrdiff_t stride2 = vsapi->getStride(src2, i) / sizeof(pixel_t);
 
         for (int y = 0; y < height; ++y) {
             memcpy(tmp1.PlaneRow(i, y), srcp1, width * sizeof(pixel_t));
             memcpy(tmp2.PlaneRow(i, y), srcp2, width * sizeof(pixel_t));
 
-            srcp1 += stride;
-            srcp2 += stride;
+            srcp1 += stride1;
+            srcp2 += stride2;
         }
     }
 
@@ -89,7 +91,7 @@ void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1
 }
 
 template <bool linput>
-void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept {
     auto tmp1_res = jxl::Image3F::Create(get_memory_manager(), width, height);
     auto tmp2_res = jxl::Image3F::Create(get_memory_manager(), width, height);
     if (!tmp1_res.ok() || !tmp2_res.ok()) return;
@@ -99,13 +101,15 @@ void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src
     for (int i = 0; i < 3; ++i) {
         const float* srcp1{reinterpret_cast<const float*>(vsapi->getReadPtr(src1, i))};
         const float* srcp2{reinterpret_cast<const float*>(vsapi->getReadPtr(src2, i))};
+        const ptrdiff_t stride1 = vsapi->getStride(src1, i) / sizeof(float);
+        const ptrdiff_t stride2 = vsapi->getStride(src2, i) / sizeof(float);
 
         for (int y = 0; y < height; ++y) {
             memcpy(tmp1.PlaneRow(i, y), srcp1, width * sizeof(float));
             memcpy(tmp2.PlaneRow(i, y), srcp2, width * sizeof(float));
 
-            srcp1 += stride;
-            srcp2 += stride;
+            srcp1 += stride1;
+            srcp2 += stride2;
         }
     }
 
@@ -115,11 +119,11 @@ void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src
     }
 }
 
-template void fill_image<uint8_t, jxl::Image3B, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-template void fill_image<uint16_t, jxl::Image3U, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+template void fill_image<uint8_t, jxl::Image3B, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint16_t, jxl::Image3U, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 
-template void fill_image<uint8_t, jxl::Image3B, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-template void fill_image<uint16_t, jxl::Image3U, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+template void fill_image<uint8_t, jxl::Image3B, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint16_t, jxl::Image3U, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 
-template void fill_imageF<true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-template void fill_imageF<false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+template void fill_imageF<true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_imageF<false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;

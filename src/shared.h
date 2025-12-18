@@ -35,9 +35,9 @@ extern VSNode* toRGBS(VSNode* source, VSCore* core, const VSAPI* vsapi);
 JxlMemoryManager* get_memory_manager();
 
 template <typename pixel_t, typename jxl_t, bool linput>
-extern void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+extern void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 template <bool linput>
-extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+extern void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 
 #if defined(_MSC_VER)
 #define FORCE_INLINE inline __forceinline

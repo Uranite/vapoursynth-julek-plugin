@@ -7,7 +7,7 @@ struct SSIMULACRAData final {
     bool simple;
     int feature;
 
-    void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+    void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 };
 
 static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void* instanceData, void** frameData, VSFrameContext* frameCtx, VSCore* core, const VSAPI* vsapi) {
@@ -22,7 +22,6 @@ static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void
 
         int width = vsapi->getFrameWidth(src2, 0);
         int height = vsapi->getFrameHeight(src2, 0);
-        const ptrdiff_t stride = vsapi->getStride(src2, 0) / d->vi->format.bytesPerSample;
 
         jxl::CodecInOut ref{get_memory_manager()};
         jxl::CodecInOut dist{get_memory_manager()};
@@ -35,7 +34,7 @@ static const VSFrame* VS_CC ssimulacraGetFrame(int n, int activationReason, void
             return nullptr;
         }
 
-        d->fill(ref, dist, src, src2, width, height, stride, vsapi);
+        d->fill(ref, dist, src, src2, width, height, vsapi);
 
         VSFrame* dst = vsapi->copyFrame(src2, core);
         VSMap* dstProps = vsapi->getFramePropertiesRW(dst);

@@ -10,12 +10,12 @@ struct BUTTERAUGLIData final {
     bool heatmap;
     bool linput;
 
-    void (*hmap)(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
-    void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept;
+    void (*hmap)(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const VSAPI* vsapi) noexcept;
+    void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 };
 
 template <typename pixel_t, typename jxl_t, int peak>
-static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const VSAPI* vsapi) noexcept {
     auto buff_res = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     if (!buff_res.ok()) return;
     jxl::Image3F buff = std::move(buff_res).value_();
@@ -37,6 +37,7 @@ static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int hei
     }
     for (int i = 0; i < 3; i++) {
         auto dstp{reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i))};
+        const ptrdiff_t stride = vsapi->getStride(dst, i) / sizeof(pixel_t);
         for (int y = 0; y < height; y++) {
             memcpy(dstp, tmp.ConstPlaneRow(i, y), width * sizeof(pixel_t));
             dstp += stride;
@@ -44,13 +45,14 @@ static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int hei
     }
 }
 
-static void heatmapF(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const ptrdiff_t stride, const VSAPI* vsapi) noexcept {
+static void heatmapF(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const VSAPI* vsapi) noexcept {
     auto buff_res = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     if (!buff_res.ok()) return;  // TODO: handle error
     jxl::Image3F buff = std::move(buff_res).value_();
 
     for (int i = 0; i < 3; i++) {
         float* dstp{reinterpret_cast<float*>(vsapi->getWritePtr(dst, i))};
+        const ptrdiff_t stride = vsapi->getStride(dst, i) / sizeof(float);
         for (int y = 0; y < height; y++) {
             memcpy(dstp, buff.ConstPlaneRow(i, y), width * sizeof(float));
             dstp += stride;
@@ -113,7 +115,7 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             return nullptr;
         }
 
-        d->fill(ref, dist, src, src2, width, height, stride, vsapi);
+        d->fill(ref, dist, src, src2, width, height, vsapi);
 
         // Butteraugli expects linear RGB
         if (!d->linput) {
@@ -166,7 +168,7 @@ static const VSFrame* VS_CC butteraugliGetFrame(int n, int activationReason, voi
             return dst;
         } else if (d->heatmap) {
             VSFrame* dst = vsapi->newVideoFrame(vsapi->getVideoFrameFormat(src2), width, height, src2, core);
-            d->hmap(dst, diff_map, width, height, stride, vsapi);
+            d->hmap(dst, diff_map, width, height, vsapi);
             VSMap* dstProps = vsapi->getFramePropertiesRW(dst);
 
             vsapi->mapSetFloat(dstProps, "_BUTTERAUGLI_QNorm", norm_q, maReplace);
