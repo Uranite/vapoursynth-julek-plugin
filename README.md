@@ -14,18 +14,6 @@ Requirements:
 ```bash
 git clone --recurse-submodules https://github.com/dnjulek/vapoursynth-julek-plugin
 
-cd vapoursynth-julek-plugin/thirdparty
-
-mkdir libjxl_build
-cd libjxl_build
-
-cmake -C ../libjxl_cache.cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -G Ninja ../libjxl
-
-cmake --build .
-cmake --install .
-
-cd ../..
-
 cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -G Ninja
 
 cmake --build build
@@ -44,16 +32,7 @@ Open the ``Visual Studio 2022 Developer PowerShell`` and use cd to the folder yo
 # $env:CXXFLAGS = "-march=native -flto -ffast-math"
 
 git clone --recurse-submodules https://github.com/dnjulek/vapoursynth-julek-plugin
-
-cd vapoursynth-julek-plugin/thirdparty
-
-cmake --fresh -C ./libjxl_cache.cmake -G Ninja ./libjxl -B libjxl_build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang
-
-cmake --build libjxl_build
-
-cmake --install libjxl_build
-
-cd ..
+cd vapoursynth-julek-plugin
 
 # You may need to adjust the location of VS_INCLUDE_DIR
 cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVS_INCLUDE_DIR="C:/Program Files/VapourSynth/sdk/include/vapoursynth" -DCMAKE_CXX_COMPILER=clang

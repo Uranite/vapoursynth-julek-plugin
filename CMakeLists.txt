@@ -2,6 +2,20 @@ cmake_minimum_required(VERSION 3.23)
 
 project(libjulek LANGUAGES CXX)
 
+# libjxl build options
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_TOOLS OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_DEVTOOLS OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_BENCHMARK OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_JNI OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_VIEWERS OFF CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_PLUGINS OFF CACHE BOOL "" FORCE)
+set(JPEGXL_STATIC ON CACHE BOOL "" FORCE)
+set(JPEGXL_ENABLE_SKCMS ON CACHE BOOL "" FORCE)
+
+add_subdirectory(thirdparty/libjxl EXCLUDE_FROM_ALL)
+
 add_library(julek SHARED
 	src/AGM.cpp
 	src/AutoGain.cpp
@@ -13,19 +27,12 @@ add_library(julek SHARED
 	src/VisualizeDiffs.cpp
 	src/torgbs.cpp
 	thirdparty/libjxl/tools/ssimulacra.cc
-	thirdparty/libjxl/tools/ssimulacra2.cc
-	thirdparty/libjxl/lib/jxl/cms/jxl_cms.cc
 	thirdparty/libjxl/tools/no_memory_manager.cc
-	thirdparty/libjxl/tools/gauss_blur.cc
-	thirdparty/libjxl/third_party/skcms/skcms.cc
-	thirdparty/libjxl/third_party/skcms/src/skcms_TransformBaseline.cc
-	thirdparty/libjxl/third_party/skcms/src/skcms_TransformHsw.cc
-	thirdparty/libjxl/third_party/skcms/src/skcms_TransformSkx.cc
+	thirdparty/libjxl/tools/ssimulacra2.cc
 )
 
 target_include_directories(julek PRIVATE
 	thirdparty/libjxl
-	thirdparty/libjxl_build/install/include
 	thirdparty/libjxl/third_party/skcms
 )
 
@@ -36,26 +43,11 @@ set_target_properties(julek PROPERTIES
 )
 target_compile_definitions(julek PRIVATE JPEGXL_ENABLE_SKCMS=1)
 
-find_library(libjxl NAMES
-	jxl
-	jxl-static
-	PATHS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libjxl_build/install/lib
-	NO_DEFAULT_PATH
-)
-
-message(STATUS "julek: find_library returned ${libjxl}")
-
-find_library(libhwy NAMES
-	hwy
-	PATHS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libjxl_build/install/lib
-	NO_DEFAULT_PATH
-)
-
-message(STATUS "julek: find_library returned ${libhwy}")
-
 target_link_libraries(julek PRIVATE
-	${libjxl}
-	${libhwy}
+	jxl
+	jxl_threads
+	hwy
+	jxl_gauss_blur
 )
 
 if((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") OR(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64"))
@@ -68,11 +60,6 @@ if((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") OR(CMAKE_SYSTEM_PROCESSOR MATCHES "
 		src/AVX2/AutoGain_AVX2.cpp
 	)
 	
-	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-		set_source_files_properties(thirdparty/libjxl/third_party/skcms/src/skcms_TransformHsw.cc PROPERTIES COMPILE_OPTIONS "-mavx2;-mf16c;-mfma")
-		set_source_files_properties(thirdparty/libjxl/third_party/skcms/src/skcms_TransformSkx.cc PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512dq;-mavx512cd;-mavx512bw;-mavx512vl")
-	endif()
-
 	if(MSVC)
 		set_source_files_properties(src/AVX2/AGM_AVX2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
 		set_source_files_properties(src/AVX2/AutoGain_AVX2.cpp PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
