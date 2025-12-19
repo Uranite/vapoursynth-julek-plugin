@@ -14,33 +14,24 @@ struct BUTTERAUGLIData final {
     void (*fill)(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 };
 
-template <typename pixel_t, typename jxl_t, int peak>
+template <typename pixel_t, int peak>
 static void heatmap(VSFrame* dst, const jxl::ImageF& heatmap, int width, int height, const VSAPI* vsapi) noexcept {
     auto buff_res = jxl::CreateHeatMapImage(heatmap, jxl::ButteraugliFuzzyInverse(1.5), jxl::ButteraugliFuzzyInverse(0.5));
     if (!buff_res.ok()) return;
     jxl::Image3F buff = std::move(buff_res).value_();
 
-    auto tmp_res = jxl_t::Create(get_memory_manager(), width, height);
-    if (!tmp_res.ok()) return;
-    jxl_t tmp = std::move(tmp_res).value_();
+    for (int i = 0; i < 3; i++) {
+        auto dstp = reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i));
+        const ptrdiff_t stride = vsapi->getStride(dst, i) / sizeof(pixel_t);
+        for (int y = 0; y < height; y++) {
+            const float* VS_RESTRICT row_in = buff.PlaneRow(i, y);
+            pixel_t* VS_RESTRICT row_out = dstp + y * stride;
 
-    for (size_t c = 0; c < 3; ++c) {
-        for (size_t y = 0; y < height; ++y) {
-            const float* VS_RESTRICT row_in = buff.PlaneRow(c, y);
-            pixel_t* VS_RESTRICT row_out = tmp.PlaneRow(c, y);
-            for (size_t x = 0; x < width; ++x) {
+            for (int x = 0; x < width; x++) {
                 // Scale and clamp
                 float val = row_in[x] * peak;
                 row_out[x] = static_cast<pixel_t>(val + 0.5f);  // Rounding
             }
-        }
-    }
-    for (int i = 0; i < 3; i++) {
-        auto dstp{reinterpret_cast<pixel_t*>(vsapi->getWritePtr(dst, i))};
-        const ptrdiff_t stride = vsapi->getStride(dst, i) / sizeof(pixel_t);
-        for (int y = 0; y < height; y++) {
-            memcpy(dstp, tmp.ConstPlaneRow(i, y), width * sizeof(pixel_t));
-            dstp += stride;
         }
     }
 }
@@ -289,11 +280,11 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
     switch (d->vi->format.bytesPerSample) {
         case 1:
             d->fill = (d->linput) ? fill_image<uint8_t, jxl::Image3B, true> : fill_image<uint8_t, jxl::Image3B, false>;
-            d->hmap = heatmap<uint8_t, jxl::Image3B, 255>;
+            d->hmap = heatmap<uint8_t, 255>;
             break;
         case 2:
             d->fill = (d->linput) ? fill_image<uint16_t, jxl::Image3U, true> : fill_image<uint16_t, jxl::Image3U, false>;
-            d->hmap = heatmap<uint16_t, jxl::Image3U, 65535>;
+            d->hmap = heatmap<uint16_t, 65535>;
             break;
         case 4:
             d->fill = (d->linput) ? fill_imageF<true> : fill_imageF<false>;
