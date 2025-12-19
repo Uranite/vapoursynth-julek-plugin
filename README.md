@@ -23,7 +23,7 @@ sudo cmake --install build
 I recommend compiling with clang or you may have problems with libjxl, if you want to try compiling with gcc you may need to add this to the second cmake command:\
 ``-DCMAKE_C_FLAGS=fPIC -DCMAKE_CXX_FLAGS=-fPIC``
 ### Windows:
-For some reason, the plugin fails to load if compiled with MSVC, use Clang instead. Select Clang in your installation of C++ Build Tools, or download Clang from [LLVM](https://github.com/llvm/llvm-project/releases) as the one from C++ Build Tools may be outdated. Only MSVC and the Windows SDK should be required in your installation of C++ Build Tools.
+Clang is recommended for faster performance. Download Clang from [LLVM](https://github.com/llvm/llvm-project/releases) as the one from Visual Studio may be outdated. Only MSVC and the Windows SDK should be required in your installation of Visual Studio.
 
 Open ``Developer PowerShell for VS`` and use cd to the folder you downloaded the repository.
 ```pwsh
@@ -36,5 +36,5 @@ cd vapoursynth-julek-plugin
 
 cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
 
-cmake --build build
+ninja -C build
 ```
