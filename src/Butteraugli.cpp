@@ -279,11 +279,11 @@ void VS_CC butteraugliCreate(const VSMap* in, VSMap* out, void* userData, VSCore
 
     switch (d->vi->format.bytesPerSample) {
         case 1:
-            d->fill = (d->linput) ? fill_image<uint8_t, jxl::Image3B, true> : fill_image<uint8_t, jxl::Image3B, false>;
+            d->fill = (d->linput) ? fill_image<uint8_t, true> : fill_image<uint8_t, false>;
             d->hmap = heatmap<uint8_t, 255>;
             break;
         case 2:
-            d->fill = (d->linput) ? fill_image<uint16_t, jxl::Image3U, true> : fill_image<uint16_t, jxl::Image3U, false>;
+            d->fill = (d->linput) ? fill_image<uint16_t, true> : fill_image<uint16_t, false>;
             d->hmap = heatmap<uint16_t, 65535>;
             break;
         case 4:

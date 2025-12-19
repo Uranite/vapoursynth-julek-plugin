@@ -28,46 +28,15 @@ JxlMemoryManager* get_memory_manager() {
     return &mm;
 }
 
-// Helper function to convert Image3<T> to Image3F with normalization
-template <typename T>
-jxl::Image3F ConvertToFloatNormalized(const jxl::Image3<T>& input) {
-    auto ret = jxl::Image3F::Create(get_memory_manager(), input.xsize(), input.ysize());
-    if (!ret.ok()) abort();  // TODO handle error better
-    jxl::Image3F out = std::move(ret).value_();
-    float scale = 1.0f / std::numeric_limits<T>::max();
-    for (size_t c = 0; c < 3; ++c) {
-        for (size_t y = 0; y < input.ysize(); ++y) {
-            const T* VS_RESTRICT row_in = input.PlaneRow(c, y);
-            float* VS_RESTRICT row_out = out.PlaneRow(c, y);
-            for (size_t x = 0; x < input.xsize(); ++x) {
-                row_out[x] = row_in[x] * scale;
-            }
-        }
-    }
-    return out;
-}
-
-// Specialization for float to float (no scale, just copy)
-template <>
-jxl::Image3F ConvertToFloatNormalized<float>(const jxl::Image3F& input) {
-    auto ret = jxl::Image3F::Create(get_memory_manager(), input.xsize(), input.ysize());
-    if (!ret.ok()) abort();  // TODO handle error better
-    jxl::Image3F out = std::move(ret).value_();
-    for (size_t c = 0; c < 3; ++c) {
-        for (size_t y = 0; y < input.ysize(); ++y) {
-            memcpy(out.PlaneRow(c, y), input.PlaneRow(c, y), input.xsize() * sizeof(float));
-        }
-    }
-    return out;
-}
-
-template <typename pixel_t, typename jxl_t, bool linput>
+template <typename pixel_t, bool linput>
 void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept {
-    auto tmp1_res = jxl_t::Create(get_memory_manager(), width, height);
-    auto tmp2_res = jxl_t::Create(get_memory_manager(), width, height);
-    if (!tmp1_res.ok() || !tmp2_res.ok()) return;  // Should handle error better but void return
-    jxl_t tmp1 = std::move(tmp1_res).value_();
-    jxl_t tmp2 = std::move(tmp2_res).value_();
+    auto tmp1_res = jxl::Image3F::Create(get_memory_manager(), width, height);
+    auto tmp2_res = jxl::Image3F::Create(get_memory_manager(), width, height);
+    if (!tmp1_res.ok() || !tmp2_res.ok()) return;
+    jxl::Image3F tmp1 = std::move(tmp1_res).value_();
+    jxl::Image3F tmp2 = std::move(tmp2_res).value_();
+
+    float scale = 1.0f / std::numeric_limits<pixel_t>::max();
 
     for (int i = 0; i < 3; ++i) {
         auto srcp1{reinterpret_cast<const pixel_t*>(vsapi->getReadPtr(src1, i))};
@@ -76,16 +45,21 @@ void fill_image(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1
         const ptrdiff_t stride2 = vsapi->getStride(src2, i) / sizeof(pixel_t);
 
         for (int y = 0; y < height; ++y) {
-            memcpy(tmp1.PlaneRow(i, y), srcp1, width * sizeof(pixel_t));
-            memcpy(tmp2.PlaneRow(i, y), srcp2, width * sizeof(pixel_t));
+            float* VS_RESTRICT row1 = tmp1.PlaneRow(i, y);
+            float* VS_RESTRICT row2 = tmp2.PlaneRow(i, y);
+
+            for (int x = 0; x < width; ++x) {
+                row1[x] = srcp1[x] * scale;
+                row2[x] = srcp2[x] * scale;
+            }
 
             srcp1 += stride1;
             srcp2 += stride2;
         }
     }
 
-    if (!ref.SetFromImage(ConvertToFloatNormalized(tmp1), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false)) ||
-        !dist.SetFromImage(ConvertToFloatNormalized(tmp2), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false))) {
+    if (!ref.SetFromImage(std::move(tmp1), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false)) ||
+        !dist.SetFromImage(std::move(tmp2), (linput) ? jxl::ColorEncoding::LinearSRGB(false) : jxl::ColorEncoding::SRGB(false))) {
         return;
     }
 }
@@ -119,11 +93,11 @@ void fill_imageF(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src
     }
 }
 
-template void fill_image<uint8_t, jxl::Image3B, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
-template void fill_image<uint16_t, jxl::Image3U, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint8_t, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint16_t, true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 
-template void fill_image<uint8_t, jxl::Image3B, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
-template void fill_image<uint16_t, jxl::Image3U, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint8_t, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
+template void fill_image<uint16_t, false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 
 template void fill_imageF<true>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;
 template void fill_imageF<false>(jxl::CodecInOut& ref, jxl::CodecInOut& dist, const VSFrame* src1, const VSFrame* src2, int width, int height, const VSAPI* vsapi) noexcept;

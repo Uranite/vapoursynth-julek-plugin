@@ -157,10 +157,10 @@ void VS_CC ssimulacraCreate(const VSMap* in, VSMap* out, void* userData, VSCore*
 
     switch (d->vi->format.bytesPerSample) {
         case 1:
-            d->fill = fill_image<uint8_t, jxl::Image3B, false>;
+            d->fill = fill_image<uint8_t, false>;
             break;
         case 2:
-            d->fill = fill_image<uint16_t, jxl::Image3U, false>;
+            d->fill = fill_image<uint16_t, false>;
             break;
         case 4:
             d->fill = fill_imageF<false>;
