@@ -27,14 +27,10 @@ Clang is recommended for faster performance. Download Clang from [LLVM](https://
 
 Open ``Developer PowerShell for VS`` and use cd to the folder you downloaded the repository.
 ```pwsh
-# Recommended, uncomment to use:
-# $env:CFLAGS = "-march=native -flto -ffast-math"
-# $env:CXXFLAGS = "-march=native -flto -ffast-math"
-
 git clone --recurse-submodules https://github.com/dnjulek/vapoursynth-julek-plugin
 cd vapoursynth-julek-plugin
 
-cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+cmake --fresh -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_FLAGS="-march=native -flto" -DCMAKE_C_FLAGS="-march=native -flto"
 
 ninja -C build
 ```
